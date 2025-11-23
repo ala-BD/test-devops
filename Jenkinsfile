@@ -1,28 +1,50 @@
 pipeline {
     agent any
-
-    tools {
-        maven 'JAVA_HOME'
-    }
-
+    
     stages {
         stage('Hello') {
             steps {
                 echo 'Hello World!'
+                sh 'echo "This is a simple test pipeline"'
             }
         }
-
-        stage('GIT') {
+        
+        stage('System Info') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/ala-BD/test-devops/'
+                sh 'echo "Current directory: $PWD"'
+                sh 'whoami'
+                sh 'uname -a'
             }
         }
-
-        stage('MAVEN') {
+        
+        stage('Tools Check') {
             steps {
-                sh 'mvn --version'
+                script {
+                    try {
+                        sh 'java -version'
+                    } catch (Exception e) {
+                        echo 'Java not available'
+                    }
+                    
+                    try {
+                        sh 'mvn --version'
+                    } catch (Exception e) {
+                        echo 'Maven not available'
+                    }
+                    
+                    try {
+                        sh 'git --version'
+                    } catch (Exception e) {
+                        echo 'Git not available'
+                    }
+                }
             }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Pipeline execution completed'
         }
     }
 }
