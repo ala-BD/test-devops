@@ -1,55 +1,28 @@
-pipeline {
+peline {
     agent any
-    
+
+    tools {
+        maven 'M2_HOME'
+    }
+
     stages {
         stage('Hello') {
             steps {
                 echo 'Hello World!'
             }
         }
-        
+
         stage('GIT') {
             steps {
-                git branch: 'Ala', 
-                url: 'https://github.com/ala-BD/test-devops.git'
-                echo 'Code récupéré depuis Git avec succès'
+                git branch: 'main',
+                    url: 'https://github.com/ala-BD/test-devops/'
             }
         }
-        
+
         stage('MAVEN') {
             steps {
-                script {
-                    if (fileExists('pom.xml')) {
-                        sh 'mvn clean compile'
-                        echo 'Build Maven réussi'
-                    } else {
-                        error 'Fichier pom.xml non trouvé'
-                    }
-                }
+                sh 'mvn --version'
             }
-        }
-        
-        stage('Test') {
-            steps {
-                script {
-                    if (fileExists('pom.xml')) {
-                        sh 'mvn test'
-                        echo 'Tests exécutés avec succès'
-                    }
-                }
-            }
-        }
-    }
-    
-    post {
-        always {
-            echo 'Pipeline terminé'
-        }
-        success {
-            echo 'Pipeline réussi!'
-        }
-        failure {
-            echo 'Pipeline échoué'
         }
     }
 }
