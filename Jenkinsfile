@@ -23,7 +23,7 @@ pipeline {
                     try {
                         sh 'java -version'
                     } catch (Exception e) {
-                        echo 'Java not available'
+                        echo 'Java not available11'
                     }
                     
                     try {
