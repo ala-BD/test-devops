@@ -2,50 +2,30 @@ pipeline {
     agent any
     
     stages {
-        stage('Hello') {
+        stage('Bonjour Ala') {
             steps {
-                echo 'Hello World!'
-                sh 'echo "This is a simple test pipeline"'
+                echo '👋 Salut Ala! Ta pipeline Jenkins fonctionne!'
+                echo "Branche: Ala"
+                echo "Build: ${BUILD_NUMBER}"
             }
         }
         
-        stage('System Info') {
+        stage('Vérifier le projet') {
             steps {
-                sh 'echo "Current directory: $PWD"'
-                sh 'whoami'
-                sh 'uname -a'
+                sh '''
+                    echo "Voici ton projet:"
+                    pwd
+                    echo "Fichiers:"
+                    ls -la
+                '''
             }
         }
         
-        stage('Tools Check') {
+        stage('Test réussi') {
             steps {
-                script {
-                    try {
-                        sh 'java -version'
-                    } catch (Exception e) {
-                        echo 'Java not available1'
-                    }
-                    
-                    try {
-                        sh 'mvn --version'
-                    } catch (Exception e) {
-                        echo 'Maven not available'
-                    }
-                    
-                    try {
-                        sh 'git --version'
-                    } catch (Exception e) {
-                        echo 'Git not available'
-                    }
-                }
+                echo '✅ Tout est OK!'
+                echo '🎯 Pipeline fonctionnelle pour la branche Ala'
             }
         }
     }
-    
-    post {
-        always {
-            echo 'Pipeline execution completed'
-        }
-    }
-
 }
