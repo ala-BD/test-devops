@@ -24,7 +24,7 @@ pipeline {
         stage('Test réussi') {
             steps {
                 echo '✅ Tout est OK!'
-                echo '🎯 Pipeline fonctionnelle pour la branche Ala'
+                echo '🎯 Pipeline fonctionnelle pour la branche Alaaa'
             }
         }
     }
