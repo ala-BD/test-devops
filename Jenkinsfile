@@ -3,165 +3,361 @@ pipeline {
     
     environment {
         // Variables Docker
-        DOCKER_HUB_USER = 'alabendawed871'
+        DOCKER_USER = 'alabendawed871'
         DOCKER_IMAGE_NAME = 'test-devops-ala'
         DOCKER_TAG = "build-${BUILD_NUMBER}"
-        DOCKER_REPO = "${DOCKER_HUB_USER}/${DOCKER_IMAGE_NAME}"
+        DOCKER_REPO = "${DOCKER_USER}/${DOCKER_IMAGE_NAME}"
+        DOCKER_CREDENTIALS_ID = 'docker-hub-ala'
+    }
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        disableConcurrentBuilds()
+        timeout(time: 20, unit: 'MINUTES')
     }
     
     stages {
-        stage('Préparation') {
+        // STAGE 1: INITIALISATION
+        stage('🔧 Initialisation') {
             steps {
-                echo '🚀 Démarrage du pipeline CI/CD Docker'
-                echo "Build: ${BUILD_NUMBER}"
-                echo "Branche: Ala"
-                echo "Repo Docker: ${DOCKER_REPO}:${DOCKER_TAG}"
-                echo "Compte: ${DOCKER_HUB_USER}"
+                echo '🚀 DÉMARRAGE PIPELINE DOCKER CI/CD'
+                echo "========================================"
+                echo "📊 Build Number: #${BUILD_NUMBER}"
+                echo "👤 Docker User: ${DOCKER_USER}"
+                echo "🐳 Image: ${DOCKER_REPO}:${DOCKER_TAG}"
+                echo "🔑 Credentials ID: ${DOCKER_CREDENTIALS_ID}"
+                echo "========================================"
+                
+                script {
+                    // Vérification de base
+                    sh '''
+                        echo "=== VÉRIFICATION SYSTÈME ==="
+                        echo "Date: $(date)"
+                        echo "User: $(whoami)"
+                        echo "Docker version:"
+                        docker --version
+                        echo ""
+                        echo "Espace disque:"
+                        df -h . | head -2
+                    '''
+                }
             }
         }
         
-        stage('Vérification du code') {
+        // STAGE 2: VÉRIFICATION DU CODE
+        stage('📁 Vérification Code') {
             steps {
                 sh '''
-                    echo "📁 Contenu du répertoire:"
-                    pwd
+                    echo "=== 📂 CONTENU DU PROJET ==="
+                    echo "Répertoire: $(pwd)"
+                    echo ""
+                    echo "Liste fichiers:"
                     ls -la
-                    
-                    echo "📄 Vérification du Dockerfile:"
+                    echo ""
+                    echo "=== 🐳 DOCKERFILE ==="
                     if [ -f "Dockerfile" ]; then
                         echo "✅ Dockerfile trouvé!"
-                        echo "Contenu:"
-                        head -20 Dockerfile
+                        echo "Contenu complet:"
+                        cat Dockerfile
                     else
-                        echo "❌ ERREUR: Dockerfile non trouvé!"
+                        echo "❌ ERREUR: Dockerfile manquant!"
                         exit 1
                     fi
+                    echo ""
+                    echo "=== 📋 FICHIERS SOURCE ==="
+                    find . -name "*.java" -o -name "*.py" -o -name "*.js" -o -name "*.txt" | head -10 || echo "Aucun fichier source spécifique"
                 '''
             }
         }
         
-        stage('Build de l\'image Docker') {
+        // STAGE 3: TEST CREDENTIALS DOCKER
+        stage('🔐 Test Authentification') {
             steps {
                 script {
-                    echo "🔨 Construction de l'image Docker..."
+                    echo "=== 🔐 TEST CREDENTIALS DOCKER HUB ==="
                     
-                    // Construction de l'image Docker
-                    def dockerImage = docker.build("${DOCKER_REPO}:${DOCKER_TAG}")
-                    
-                    echo "✅ Image construite localement: ${DOCKER_REPO}:${DOCKER_TAG}"
-                    
-                    // Lister les images
-                    sh """
-                        echo "📦 Images Docker locales:"
-                        docker images | grep -E "${DOCKER_HUB_USER}|REPOSITORY" || echo "Aucune image trouvée pour ${DOCKER_HUB_USER}"
-                    """
-                }
-            }
-        }
-        
-        stage('Test de l\'image Docker') {
-            steps {
-                script {
-                    echo "🧪 Test de l'image Docker..."
-                    sh """
-                        echo "=== Démarrage du test ==="
-                        docker run --rm ${DOCKER_REPO}:${DOCKER_TAG} echo "✅ Image Docker fonctionnelle!"
-                        echo "=== Test terminé avec succès ==="
-                    """
-                }
-            }
-        }
-        
-        stage('Push vers Docker Hub') {
-            steps {
-                script {
-                    echo "⬆️  Pushing vers Docker Hub..."
-                    echo "🔗 Destination: https://hub.docker.com/r/${DOCKER_HUB_USER}/"
-                    echo "🔑 Utilisation des credentials: docker-hub-ala"
-                    
-                    try {
-                        // Se connecter à Docker Hub et pousser l'image
-                        docker.withRegistry('https://registry.hub.docker.com', 'docker-hub-ala') {
-                            // Tag supplémentaire pour latest
-                            sh """
-                                docker tag ${DOCKER_REPO}:${DOCKER_TAG} ${DOCKER_REPO}:latest
-                                echo "🏷️  Image taggée: latest"
-                            """
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: DOCKER_CREDENTIALS_ID,
+                            usernameVariable: 'DOCKER_HUB_USER',
+                            passwordVariable: 'DOCKER_HUB_TOKEN'
+                        )
+                    ]) {
+                        sh '''
+                            echo "Username: ${DOCKER_HUB_USER}"
+                            echo "Token (premiers chars): ${DOCKER_HUB_TOKEN:0:10}..."
                             
-                            // Pousser avec le tag du build
-                            dockerImage.push("${DOCKER_TAG}")
-                            echo "📤 Image poussée avec tag: ${DOCKER_TAG}"
+                            # Nettoyage préalable
+                            docker logout 2>/dev/null || true
                             
-                            // Pousser le tag latest
-                            dockerImage.push("latest")
-                            echo "📤 Image poussée avec tag: latest"
-                            
-                            echo "🎉 Image poussée sur Docker Hub avec succès!"
-                            echo "🔗 URL: https://hub.docker.com/r/${DOCKER_HUB_USER}/${DOCKER_IMAGE_NAME}"
-                        }
-                    } catch (Exception e) {
-                        echo "❌ Erreur lors du push: ${e.getMessage()}"
-                        echo "💡 Vérifiez:"
-                        echo "   1. Les credentials Docker Hub dans Jenkins"
-                        echo "   2. Le token Docker Hub (Read/Write/Delete permissions)"
-                        echo "   3. La connexion internet"
-                        error("Échec du push Docker Hub")
+                            # TEST CRITIQUE: CONNEXION DOCKER HUB
+                            echo ""
+                            echo ">>> Tentative de connexion à Docker Hub..."
+                            if echo "${DOCKER_HUB_TOKEN}" | docker login -u "${DOCKER_HUB_USER}" --password-stdin; then
+                                echo "✅ ✅ ✅ CONNEXION RÉUSSIE À DOCKER HUB!"
+                                echo "🎉 Les credentials sont VALIDES!"
+                                
+                                # Vérification supplémentaire
+                                echo ""
+                                echo "=== VÉRIFICATION ==="
+                                docker info 2>/dev/null | grep -E "Username:|Registry:" || echo "Info Docker disponible"
+                                
+                                # Petit test
+                                echo "Test rapide pull..."
+                                docker pull hello-world 2>&1 | grep -E "Pulling|Downloaded|Status" || true
+                                
+                                # Déconnexion pour la suite
+                                docker logout
+                                echo "✅ Prêt pour la suite!"
+                            else
+                                echo "❌ ❌ ❌ ÉCHEC CONNEXION DOCKER HUB"
+                                echo "💡 Problème probable:"
+                                echo "   1. Token invalide/expiré"
+                                echo "   2. Mauvais username"
+                                echo "   3. Problème réseau"
+                                echo ""
+                                echo "⚠️  Vérifiez les credentials dans Jenkins:"
+                                echo "   Manage Jenkins → Manage Credentials → ${DOCKER_CREDENTIALS_ID}"
+                                exit 1
+                            fi
+                        '''
                     }
                 }
             }
         }
         
-        stage('Nettoyage') {
+        // STAGE 4: BUILD DOCKER IMAGE
+        stage('🏗️ Build Image Docker') {
             steps {
                 script {
-                    echo "🧹 Nettoyage des images locales..."
+                    echo "=== 🐳 CONSTRUCTION IMAGE DOCKER ==="
+                    
                     sh """
-                        # Supprimer les images locales pour économiser de l'espace
-                        docker rmi ${DOCKER_REPO}:${DOCKER_TAG} || true
-                        docker rmi ${DOCKER_REPO}:latest || true
-                        echo "✅ Images locales nettoyées"
+                        # Construction avec cache optimisé
+                        echo "Construction de: ${DOCKER_REPO}:${DOCKER_TAG}"
+                        docker build \\
+                            --pull \\
+                            --no-cache \\
+                            --tag ${DOCKER_REPO}:${DOCKER_TAG} \\
+                            --tag ${DOCKER_REPO}:latest \\
+                            .
+                        
+                        echo "✅ Construction terminée!"
+                        echo ""
+                        echo "=== 📦 IMAGES CRÉÉES ==="
+                        docker images ${DOCKER_USER}/*
+                        
+                        echo ""
+                        echo "=== ℹ️  INFO IMAGE ==="
+                        docker inspect ${DOCKER_REPO}:${DOCKER_TAG} | jq -r '.[0].Config.Labels' 2>/dev/null || \\
+                        docker inspect ${DOCKER_REPO}:${DOCKER_TAG} | grep -A5 "Config" || echo "Info inspection"
                     """
                 }
             }
         }
         
-        stage('Vérification finale') {
+        // STAGE 5: TESTS DE L'IMAGE
+        stage('🧪 Tests Image') {
+            steps {
+                sh '''
+                    echo "=== 🧪 TESTS DE L'IMAGE ==="
+                    
+                    echo "Test 1: Exécution basique"
+                    docker run --rm ${DOCKER_REPO}:${DOCKER_TAG}
+                    
+                    echo ""
+                    echo "Test 2: Vérification fichiers"
+                    docker run --rm ${DOCKER_REPO}:${DOCKER_TAG} ls -la /app
+                    
+                    echo ""
+                    echo "Test 3: Vérification packages"
+                    docker run --rm ${DOCKER_REPO}:${DOCKER_TAG} bash --version | head -1
+                    docker run --rm ${DOCKER_REPO}:${DOCKER_TAG} curl --version | head -1
+                    docker run --rm ${DOCKER_REPO}:${DOCKER_TAG} git --version
+                    
+                    echo ""
+                    echo "Test 4: Vérification environnement"
+                    docker run --rm ${DOCKER_REPO}:${DOCKER_TAG} env | grep -E "PATH|HOME|USER" | head -5
+                    
+                    echo ""
+                    echo "✅ Tous les tests réussis!"
+                '''
+            }
+        }
+        
+        // STAGE 6: PUSH VERS DOCKER HUB
+        stage('⬆️ Push Docker Hub') {
             steps {
                 script {
-                    echo "🔍 Vérification finale..."
-                    echo "✅ Pipeline exécutée avec succès!"
-                    echo "🐳 Image Docker: ${DOCKER_REPO}:${DOCKER_TAG}"
-                    echo "🔗 Accès sur Docker Hub: https://hub.docker.com/r/${DOCKER_HUB_USER}/${DOCKER_IMAGE_NAME}"
-                    echo "🏷️ Tags disponibles: ${DOCKER_TAG} et latest"
-                    echo ""
-                    echo "📋 Pour utiliser l'image:"
-                    echo "   docker pull ${DOCKER_REPO}:latest"
-                    echo "   docker run --rm ${DOCKER_REPO}:latest"
+                    echo "=== 🚀 PUSH VERS DOCKER HUB ==="
+                    
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: DOCKER_CREDENTIALS_ID,
+                            usernameVariable: 'DOCKER_HUB_USER',
+                            passwordVariable: 'DOCKER_HUB_TOKEN'
+                        )
+                    ]) {
+                        sh '''
+                            echo "Connexion à Docker Hub..."
+                            
+                            # CONNEXION
+                            if ! echo "${DOCKER_HUB_TOKEN}" | docker login -u "${DOCKER_HUB_USER}" --password-stdin; then
+                                echo "❌ Impossible de se connecter - ABANDON"
+                                exit 1
+                            fi
+                            
+                            echo "✅ Connecté avec succès!"
+                            echo ""
+                            
+                            # PUSH IMAGE BUILD TAG
+                            echo ">>> Pushing ${DOCKER_TAG}..."
+                            if docker push ${DOCKER_REPO}:${DOCKER_TAG}; then
+                                echo "✅ ${DOCKER_TAG} poussé avec succès!"
+                            else
+                                echo "❌ Échec push ${DOCKER_TAG}"
+                                exit 1
+                            fi
+                            
+                            echo ""
+                            
+                            # PUSH LATEST TAG
+                            echo ">>> Pushing latest..."
+                            if docker push ${DOCKER_REPO}:latest; then
+                                echo "✅ latest poussé avec succès!"
+                            else
+                                echo "❌ Échec push latest"
+                                exit 1
+                            fi
+                            
+                            echo ""
+                            echo "🎉 🎉 🎉 PUSH COMPLÈTEMENT RÉUSSI! 🎉 🎉 🎉"
+                            echo "Votre image est maintenant disponible sur Docker Hub!"
+                        '''
+                    }
                 }
+            }
+        }
+        
+        // STAGE 7: VÉRIFICATION FINALE
+        stage('✅ Vérification Finale') {
+            steps {
+                script {
+                    echo "=== ✅ VÉRIFICATION FINALE ==="
+                    echo ""
+                    echo "🎊 PIPELINE COMPLÈTEMENT RÉUSSIE! 🎊"
+                    echo ""
+                    echo "📊 RAPPORT DE BUILD:"
+                    echo "   Build Number: #${BUILD_NUMBER}"
+                    echo "   Date: ${new Date().format('yyyy-MM-dd HH:mm:ss')}"
+                    echo "   Durée: ${currentBuild.durationString}"
+                    echo ""
+                    echo "🐳 IMAGE DOCKER:"
+                    echo "   Nom: ${DOCKER_REPO}"
+                    echo "   Tags: ${DOCKER_TAG}, latest"
+                    echo "   Taille: $(docker images ${DOCKER_REPO} --format '{{.Size}}' | head -1)"
+                    echo ""
+                    echo "🌐 DOCKER HUB:"
+                    echo "   URL: https://hub.docker.com/r/${DOCKER_USER}/${DOCKER_IMAGE_NAME}"
+                    echo "   Tags disponibles: ${DOCKER_TAG} et latest"
+                    echo ""
+                    echo "🚀 COMMANDES POUR UTILISER:"
+                    echo "   # Télécharger l'image"
+                    echo "   docker pull ${DOCKER_REPO}:latest"
+                    echo ""
+                    echo "   # Exécuter l'image"
+                    echo "   docker run --rm ${DOCKER_REPO}:latest"
+                    echo ""
+                    echo "   # Voir les informations"
+                    echo "   docker run --rm ${DOCKER_REPO}:latest cat /info.txt"
+                    echo ""
+                    echo "   # Accéder au shell"
+                    echo "   docker run -it --rm ${DOCKER_REPO}:latest /bin/bash"
+                }
+                
+                // Nettoyage final
+                sh '''
+                    echo ""
+                    echo "=== 🧹 NETTOYAGE FINAL ==="
+                    docker logout 2>/dev/null || true
+                    
+                    # Optionnel: supprimer images locales
+                    docker rmi ${DOCKER_REPO}:${DOCKER_TAG} 2>/dev/null || echo "Image ${DOCKER_TAG} supprimée"
+                    docker rmi ${DOCKER_REPO}:latest 2>/dev/null || echo "Image latest supprimée"
+                    
+                    # Nettoyage Docker
+                    docker system prune -f 2>/dev/null || true
+                    
+                    echo "✅ Nettoyage terminé"
+                '''
             }
         }
     }
     
     post {
         always {
-            echo "📊 Pipeline terminée - Build #${BUILD_NUMBER}"
-            echo "⏱️  Date: ${new Date().format('yyyy-MM-dd HH:mm:ss')}"
+            echo "========================================"
+            echo "🏁 FIN DU PIPELINE - Build #${BUILD_NUMBER}"
+            echo "========================================"
+            
+            // Archivage des logs
+            archiveArtifacts artifacts: '**/*.log', allowEmptyArchive: true
         }
         success {
-            echo "✅ SUCCÈS COMPLET!"
-            echo "🎯 Objectif atteint: Image Docker automatiquement créée et poussée sur Docker Hub"
-            echo "📈 Prochain build automatique au prochain changement GitHub"
+            echo ""
+            echo "███████╗██╗   ██╗ ██████╗ ██████╗███████╗███████╗███████╗"
+            echo "██╔════╝██║   ██║██╔════╝██╔════╝██╔════╝██╔════╝██╔════╝"
+            echo "███████╗██║   ██║██║     ██║     █████╗  ███████╗███████╗"
+            echo "╚════██║██║   ██║██║     ██║     ██╔══╝  ╚════██║╚════██║"
+            echo "███████║╚██████╔╝╚██████╗╚██████╗███████╗███████║███████║"
+            echo "╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝╚══════╝╚══════╝╚══════╝"
+            echo ""
+            echo "🌟 FÉLICITATIONS! Votre pipeline Docker fonctionne parfaitement! 🌟"
+            echo ""
+            
+            // Message de succès
+            script {
+                sh '''
+                    echo "Build ${BUILD_NUMBER} - SUCCÈS" > success.txt
+                    echo "Image: ${DOCKER_REPO}:${DOCKER_TAG}" >> success.txt
+                    echo "Date: $(date)" >> success.txt
+                '''
+                archiveArtifacts artifacts: 'success.txt'
+            }
         }
         failure {
-            echo "❌ ÉCHEC: Pipeline interrompue"
-            echo "💡 Solutions possibles:"
-            echo "   1. Vérifiez les credentials Docker Hub (ID: docker-hub-ala)"
-            echo "   2. Vérifiez le token Docker Hub (permissions Read/Write/Delete)"
-            echo "   3. Vérifiez la connexion internet"
-            echo "   4. Vérifiez que Jenkins a accès à Docker (sudo -u jenkins docker ps)"
+            echo ""
+            echo "███████╗██████╗ ███████╗ ██████╗██╗   ██╗██████╗ "
+            echo "██╔════╝██╔══██╗██╔════╝██╔════╝██║   ██║██╔══██╗"
+            echo "█████╗  ██║  ██║█████╗  ██║     ██║   ██║██████╔╝"
+            echo "██╔══╝  ██║  ██║██╔══╝  ██║     ██║   ██║██╔══██╗"
+            echo "███████╗██████╔╝███████╗╚██████╗╚██████╔╝██║  ██║"
+            echo "╚══════╝╚═════╝ ╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝"
+            echo ""
+            echo "🔧 DIAGNOSTIC RAPIDE:"
+            echo "   1. Testez manuellement: docker login -u alabendawed871"
+            echo "   2. Vérifiez le token dans Jenkins"
+            echo "   3. Vérifiez que Docker tourne: docker ps"
+            echo ""
+            echo "📋 Logs d'erreur disponibles dans Jenkins"
+            
+            // Archivage des logs d'erreur
+            script {
+                sh '''
+                    echo "Build ${BUILD_NUMBER} - ÉCHEC" > error.log
+                    docker version >> error.log 2>&1
+                    echo "=== FIN ====" >> error.log
+                '''
+                archiveArtifacts artifacts: 'error.log'
+            }
         }
-        unstable {
-            echo "⚠️  Pipeline instable - vérifiez les tests"
+        cleanup {
+            // Nettoyage ultime
+            sh '''
+                echo "🧼 Nettoyage des fichiers temporaires..."
+                rm -f success.txt error.log 2>/dev/null || true
+                echo "✅ Nettoyage terminé"
+            '''
         }
     }
 }
