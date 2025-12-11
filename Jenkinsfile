@@ -134,7 +134,7 @@ pipeline {
     
     post {
         success {
-            echo '🎉 SUCCÈS COMPLET!!!'
+            echo '🎉 SUCCÈS COMPLET!'
         }
         failure {
             echo '❌ ÉCHEC - Vérifiez les logs'
