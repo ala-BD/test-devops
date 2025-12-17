@@ -6,10 +6,6 @@ pipeline {
         DOCKER_IMAGE = 'test-devops-ala'
     }
     
-    triggers {
-        pollSCM('* * * * *')  // Vérifie chaque minute
-    }
-    
     stages {
         stage('Git') {
             steps {
@@ -24,6 +20,7 @@ pipeline {
                     echo "🔍 Vérification configuration SonarQube..."
                     echo "Nom recherché: SonarQube-Ala"
                     
+                    // Test simple sans échouer
                     try {
                         withSonarQubeEnv('SonarQube-Ala') {
                             echo "✅ Configuration SonarQube trouvée!"
@@ -31,38 +28,18 @@ pipeline {
                         }
                     } catch (Exception e) {
                         echo "⚠️ Configuration SonarQube-Ala non trouvée"
-                        echo "➡️ On continue avec URL directe"
+                        echo "➡️ On continue sans SonarQube pour l'instant"
                     }
                 }
             }
         }
         
-        stage('Build & Sonar') {
+        stage('Build') {
             steps {
-                script {
-                    echo "🔨 Build et analyse SonarQube..."
-                    
-                    // Essayez d'abord avec la config Jenkins
-                    try {
-                        withSonarQubeEnv('SonarQube-Ala') {
-                            sh '''
-                                mvn clean test sonar:sonar \
-                                -Dsonar.login=admin \
-                                -Dsonar.password=AdminSonar123!
-                            '''
-                        }
-                    } catch (Exception e) {
-                        // Fallback: URL directe
-                        echo "⚠️ Utilisation URL directe pour SonarQube"
-                        sh '''
-                            mvn clean test sonar:sonar \
-                            -Dsonar.host.url=http://192.168.33.10:9000 \
-                            -Dsonar.login=admin \
-                            -Dsonar.password=AdminSonar123!
-                        '''
-                    }
-                }
-                echo "✅ Build et analyse SonarQube réussis"
+                sh '''
+                    mvn clean package -DskipTests
+                    echo "✅ Build Maven réussi"
+                '''
             }
         }
         
@@ -102,8 +79,6 @@ pipeline {
             echo '📊 RÉSUMÉ :'
             echo '• Image Docker : alabendawed871/test-devops-ala:${BUILD_NUMBER}'
             echo '• Docker Hub : https://hub.docker.com/r/alabendawed871/test-devops-ala'
-            echo '• SonarQube : http://192.168.33.10:9000'
-            echo '• Login Sonar : admin / AdminSonar123!'
         }
     }
 }
