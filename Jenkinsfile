@@ -74,7 +74,7 @@ pipeline {
     
     post {
         success {
-            echo '🎉 PIPELINE RÉUSSIE !!'
+            echo '🎉 PIPELINE RÉUSSIE !'
             echo ''
             echo '📊 RÉSUMÉ :'
             echo '• Image Docker : alabendawed871/test-devops-ala:${BUILD_NUMBER}'
