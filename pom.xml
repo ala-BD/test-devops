@@ -13,46 +13,50 @@
     <version>0.0.1-SNAPSHOT</version>
     <name>student-management</name>
     <description>student-management</description>
+    <url/>
+    <licenses>
+        <license/>
+    </licenses>
+    <developers>
+        <developer/>
+    </developers>
+    <scm>
+        <connection/>
+        <developerConnection/>
+        <tag/>
+        <url/>
+    </scm>
     
     <properties>
         <java.version>17</java.version>
         <!-- SonarQube Properties -->
         <sonar.host.url>http://192.168.33.10:9000</sonar.host.url>
         <sonar.projectKey>student-management</sonar.projectKey>
-        <sonar.projectName>Student Management</sonar.projectName>
-        <sonar.projectVersion>${project.version}</sonar.projectVersion>
+        <sonar.projectName>student-management</sonar.projectName>
+        <sonar.projectVersion>0.0.1-SNAPSHOT</sonar.projectVersion>
         <sonar.sourceEncoding>UTF-8</sonar.sourceEncoding>
-        <sonar.java.source>${java.version}</sonar.java.source>
-        <sonar.java.target>${java.version}</sonar.java.target>
+        <sonar.java.source>17</sonar.java.source>
+        <sonar.java.target>17</sonar.java.target>
         <!-- JaCoCo Properties -->
         <jacoco.version>0.8.11</jacoco.version>
-        <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
         <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
         <sonar.coverage.exclusions>
             **/entity/**,
             **/dto/**,
             **/config/**,
             **/*Application.java,
-            **/exception/**,
-            **/model/**
+            **/exception/**
         </sonar.coverage.exclusions>
         <sonar.exclusions>
             **/target/**,
             **/test/**,
             **/*.xml,
             **/*.yml,
-            **/*.properties,
-            **/node_modules/**
+            **/*.properties
         </sonar.exclusions>
-        <sonar.tests>src/test/java</sonar.tests>
-        <sonar.test.inclusions>**/*Test.java,**/*Tests.java</sonar.test.inclusions>
-        <sonar.sources>src/main/java</sonar.sources>
-        <sonar.java.binaries>target/classes</sonar.java.binaries>
-        <sonar.java.libraries>target/**/*.jar</sonar.java.libraries>
     </properties>
     
     <dependencies>
-        <!-- Spring Boot Starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -61,45 +65,40 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-        
-        <!-- Database -->
+
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
-        
-        <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <version>1.18.38</version>
             <optional>true</optional>
         </dependency>
-        
-        <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        
-        <!-- OpenAPI / Swagger -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.6.0</version>
+            <version>2.1.0</version>
         </dependency>
         
-        <!-- Validation -->
+        <!-- JaCoCo for test coverage (required by SonarQube) -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <version>${jacoco.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
-            <!-- Spring Boot Maven Plugin -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -113,33 +112,40 @@
                 </configuration>
             </plugin>
             
+            <!-- SonarQube Maven Plugin -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>3.11.0.3922</version>
+                <executions>
+                    <execution>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sonar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            
             <!-- JaCoCo Maven Plugin for Code Coverage -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${jacoco.version}</version>
                 <executions>
-                    <!-- Préparation de l'agent JaCoCo -->
                     <execution>
                         <id>prepare-agent</id>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
-                    
-                    <!-- Génération du rapport après les tests -->
                     <execution>
                         <id>report</id>
-                        <phase>verify</phase>
+                        <phase>test</phase>
                         <goals>
                             <goal>report</goal>
                         </goals>
-                        <configuration>
-                            <outputDirectory>target/site/jacoco</outputDirectory>
-                        </configuration>
                     </execution>
-                    
-                    <!-- Vérification de la couverture -->
                     <execution>
                         <id>jacoco-check</id>
                         <goals>
@@ -151,14 +157,9 @@
                                     <element>BUNDLE</element>
                                     <limits>
                                         <limit>
-                                            <counter>LINE</counter>
+                                            <counter>INSTRUCTION</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.60</minimum> <!-- 60% coverage minimum -->
-                                        </limit>
-                                        <limit>
-                                            <counter>BRANCH</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.50</minimum> <!-- 50% branch coverage minimum -->
+                                            <minimum>0.80</minimum> <!-- 80% coverage minimum -->
                                         </limit>
                                     </limits>
                                 </rule>
@@ -170,12 +171,9 @@
                     <excludes>
                         <exclude>**/entity/**</exclude>
                         <exclude>**/dto/**</exclude>
-                        <exclude>**/model/**</exclude>
                         <exclude>**/config/**</exclude>
                         <exclude>**/*Application.java</exclude>
                         <exclude>**/exception/**</exclude>
-                        <exclude>**/repository/**</exclude>
-                        <exclude>**/constant/**</exclude>
                     </excludes>
                 </configuration>
             </plugin>
@@ -186,7 +184,6 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>
-                    <argLine>@{argLine} -Xmx1024m</argLine>
                     <includes>
                         <include>**/*Test.java</include>
                         <include>**/*Tests.java</include>
@@ -196,23 +193,7 @@
                         <exclude>**/*IT.java</exclude>
                         <exclude>**/*ITCase.java</exclude>
                     </excludes>
-                    <testFailureIgnore>false</testFailureIgnore>
                 </configuration>
-            </plugin>
-            
-            <!-- Failsafe Plugin for integration tests -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <version>3.2.5</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>integration-test</goal>
-                            <goal>verify</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             
             <!-- Compiler Plugin -->
@@ -227,82 +208,38 @@
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
+                            <version>1.18.38</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
-            
-            <!-- SonarQube Maven Plugin (Optionnel - peut être géré par Jenkins) -->
-            <plugin>
-                <groupId>org.sonarsource.scanner.maven</groupId>
-                <artifactId>sonar-maven-plugin</artifactId>
-                <version>3.11.0.3922</version>
-            </plugin>
         </plugins>
     </build>
     
-    <!-- Profils Maven -->
     <profiles>
-        <!-- Profil pour analyse SonarQube -->
+        <!-- SonarQube Profile -->
         <profile>
             <id>sonar</id>
             <activation>
-                <activeByDefault>false</activeByDefault>
-                <property>
-                    <name>sonar</name>
-                </property>
+                <activeByDefault>true</activeByDefault>
             </activation>
             <properties>
                 <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
                 <sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
                 <sonar.language>java</sonar.language>
-                <sonar.coverage.exclusions>
-                    **/entity/**,**/dto/**,**/model/**,**/config/**,**/*Application.java,**/exception/**,**/repository/**,**/constant/**
-                </sonar.coverage.exclusions>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.sonarsource.scanner.maven</groupId>
-                        <artifactId>sonar-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>sonar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        
-        <!-- Profil pour build Jenkins -->
-        <profile>
-            <id>jenkins</id>
-            <activation>
-                <activeByDefault>false</activeByDefault>
-                <property>
-                    <name>env.BUILD_NUMBER</name>
-                </property>
-            </activation>
-            <properties>
-                <skipITs>true</skipITs>
-                <sonar.host.url>${env.SONAR_HOST_URL}</sonar.host.url>
-                <sonar.login>${env.SONAR_AUTH_TOKEN}</sonar.login>
+                <sonar.tests>src/test</sonar.tests>
+                <sonar.test.inclusions>**/*Test.java,**/*Tests.java</sonar.test.inclusions>
             </properties>
         </profile>
         
-        <!-- Profil pour sauter les tests -->
+        <!-- Skip tests profile (for faster builds) -->
         <profile>
             <id>skip-tests</id>
             <properties>
                 <skipTests>true</skipTests>
                 <maven.test.skip>true</maven.test.skip>
-                <skipITs>true</skipITs>
             </properties>
         </profile>
     </profiles>
+
 </project>
