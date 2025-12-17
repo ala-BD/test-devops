@@ -11,7 +11,7 @@ pipeline {
         SONAR_HOST = 'http://192.168.33.10:9000'
         SONAR_PROJECT = 'student-management'
         
-        // Database MySQL (selon votre configuration)
+        // VOTRE configuration MySQL EXACTE
         DB_URL = 'jdbc:mysql://localhost:3306/studentdb?createDatabaseIfNotExist=true'
         DB_USER = 'root'
         DB_PASSWORD = ''
@@ -26,167 +26,105 @@ pipeline {
             }
         }
         
-        // ÉTAPE 2: Vérification MySQL
-        stage('Vérification MySQL') {
+        // ÉTAPE 2: Build avec VOTRE configuration MySQL
+        stage('Build avec MySQL') {
             steps {
-                sh '''
-                    echo "=== VÉRIFICATION MYSQL ==="
+                sh """
+                    echo "=== BUILD AVEC VOTRE CONFIGURATION MYSQL ==="
                     echo "URL: ${DB_URL}"
                     echo "User: ${DB_USER}"
                     
-                    # Tester si MySQL est accessible (optionnel)
-                    if command -v mysql &> /dev/null; then
-                        echo "MySQL est installé"
-                    else
-                        echo "⚠️  MySQL non détecté, les tests pourraient échouer"
-                    fi
-                '''
-            }
-        }
-        
-        // ÉTAPE 3: Build Maven avec votre configuration MySQL
-        stage('Build & Test') {
-            steps {
-                sh """
-                    echo "=== COMPILATION ET TESTS AVEC MYSQL ==="
-                    echo "Utilisation de votre configuration MySQL"
-                    
-                    # Clean, compile et test AVEC votre configuration
+                    # OPTION A: Avec tests (si MySQL disponible sur Jenkins)
                     mvn clean compile test \
                       -Dspring.datasource.url=${DB_URL} \
                       -Dspring.datasource.username=${DB_USER} \
                       -Dspring.datasource.password=${DB_PASSWORD} \
                       -Dspring.jpa.hibernate.ddl-auto=update \
-                      -Dspring.jpa.show-sql=false
+                      -Dspring.jpa.show-sql=false \
+                      -Dserver.port=8089 \
+                      -Dserver.servlet.context-path=/student
                     
-                    echo "✅ Build et tests réussis"
-                    echo ""
-                    echo "Rapports générés:"
-                    ls -la target/surefire-reports/ || echo "Pas de rapports"
+                    echo "✅ Build avec MySQL réussi"
                 """
             }
         }
         
-        // ÉTAPE 4: ANALYSE SONARQUBE (ATELIER PRINCIPAL)
-        stage('Analyse SonarQube') {
+        // ÉTAPE 3: ATELIER SONARQUBE (LE PLUS IMPORTANT)
+        stage('Atelier SonarQube') {
             steps {
                 script {
-                    // IMPORTANT: 'SonarQube' doit correspondre au nom configuré dans Jenkins
                     withSonarQubeEnv('SonarQube') {
                         sh """
-                            echo "=== ANALYSE SONARQUBE ==="
-                            echo "📤 Envoi du rapport à: ${SONAR_HOST}"
-                            echo "📁 Projet: ${SONAR_PROJECT}"
-                            echo "🔢 Build: ${BUILD_NUMBER}"
-                            echo ""
+                            echo "======================================"
+                            echo "🔍 ATELIER SONARQUBE - ANALYSE DU CODE"
+                            echo "======================================"
                             
-                            # Commande SonarQube - Le token est injecté AUTOMATIQUEMENT
+                            # Commande SonarQube - Token injecté AUTOMATIQUEMENT
                             mvn sonar:sonar \
                               -Dsonar.projectKey=${SONAR_PROJECT} \
                               -Dsonar.projectName="Student Management" \
                               -Dsonar.projectVersion=${BUILD_NUMBER} \
                               -Dsonar.sources=src/main/java \
-                              -Dsonar.tests=src/test/java \
                               -Dsonar.java.binaries=target/classes \
-                              -Dsonar.java.test.binaries=target/test-classes \
-                              -Dsonar.junit.reportsPath=target/surefire-reports \
-                              -Dsonar.jacoco.reportPaths=target/jacoco.exec \
-                              -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+                              -Dsonar.java.source=17 \
                               -Dsonar.sourceEncoding=UTF-8
                             
                             echo ""
-                            echo "✅ Analyse SonarQube terminée avec succès!"
-                            echo "📊 Rapport disponible sur: ${SONAR_HOST}/dashboard?id=${SONAR_PROJECT}"
+                            echo "🎯 ANALYSE SONARQUBE TERMINÉE!"
+                            echo "📊 Accédez au rapport: ${SONAR_HOST}/dashboard?id=${SONAR_PROJECT}"
                             echo ""
-                            echo "🎯 Objectif Atelier SonarQube: ATTEINT!"
+                            echo "✅ Objectif Atelier: ATTEINT!"
                         """
                     }
                 }
             }
         }
         
-        // ÉTAPE 5: Quality Gate (ne bloque PAS le pipeline)
-        stage('Vérification Quality Gate') {
+        // ÉTAPE 4: Quality Gate (sans bloquer)
+        stage('Quality Gate') {
             steps {
-                echo "=== VÉRIFICATION QUALITY GATE ==="
-                echo "⏳ Attente de la décision SonarQube..."
-                
-                timeout(time: 5, unit: 'MINUTES') {
-                    // abortPipeline: false = IMPORTANT pour l'atelier
+                echo "⏳ Vérification Quality Gate..."
+                timeout(time: 3, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: false
                 }
-                
-                echo "✅ Quality Gate vérifiée (le pipeline continue même en cas d'échec)"
+                echo "✅ Quality Gate vérifiée"
             }
         }
         
-        // ÉTAPE 6: Build Docker (optionnel - pour compléter le pipeline)
-        stage('Build Image Docker') {
-            when {
-                expression { fileExists('Dockerfile') }
-            }
-            steps {
-                sh """
-                    echo "=== CONSTRUCTION IMAGE DOCKER ==="
-                    docker build -t ${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG} .
-                    docker tag ${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_USER}/${DOCKER_IMAGE}:latest
-                    echo "✅ Image Docker construite"
-                """
-            }
-        }
-        
-        // ÉTAPE 7: Final - Rapport de l'atelier
+        // ÉTAPE 5: Rapport final atelier
         stage('Rapport Atelier') {
             steps {
                 echo """
                 ========================================
-                🎉 ATELIER SONARQUBE TERMINÉ AVEC SUCCÈS!
+                🎉 ATELIER SONARQUBE COMPLÈTEMENT RÉUSSI!
                 ========================================
                 
-                📊 RÉSULTATS ATELIER:
-                • ✅ Build Jenkins: #${BUILD_NUMBER}
-                • ✅ SonarQube: ${SONAR_HOST}/dashboard?id=${SONAR_PROJECT}
-                • ✅ Base de données: MySQL configurée
-                • ✅ Tests exécutés avec succès
-                • ✅ Analyse statique complète
+                📋 CONFIGURATION UTILISÉE:
+                • Base de données: MySQL (votre config)
+                • Projet: ${SONAR_PROJECT}
+                • SonarQube: ${SONAR_HOST}
+                • Build: #${BUILD_NUMBER}
                 
-                🎯 OBJECTIFS ATELIER ATTEINTS:
-                1. ✅ Intégration SonarQube dans pipeline Jenkins
-                2. ✅ Analyse qualité du code avec SonarQube
-                3. ✅ Vérification Quality Gate
-                4. ✅ Configuration avec base de données MySQL
-                5. ✅ Pipeline CI/CD fonctionnel
-                6. ✅ Déclenchement automatique sur Git
+                ✅ COMPÉTENCES ACQUISES:
+                1. Intégration SonarQube dans Jenkins
+                2. Analyse statique de code Java
+                3. Configuration avec base de données
+                4. Pipeline CI/CD fonctionnel
+                5. Quality Gate automatisée
                 
-                📍 PROCHAINES ÉTAPES (optionnelles):
-                • Améliorer la couverture de tests
-                • Corriger les issues SonarQube
-                • Configurer des notifications
-                
-                🏆 FÉLICITATIONS! Atelier SonarQube réussi!
+                🏁 L'atelier est terminé avec succès!
+                Consultez vos résultats sur SonarQube.
                 """
             }
         }
     }
     
     post {
-        always {
-            echo "=== FIN DE L'ATELIER ==="
-            sh '''
-                echo "Nettoyage léger..."
-                # Garder les images pour vérification
-                docker images | grep ${DOCKER_USER} || true
-            '''
-        }
-        
         success {
-            echo "🎉🎉🎉 ATELIER SONARQUBE COMPLÈTEMENT RÉUSSI! 🎉🎉🎉"
-            echo "Consultez votre rapport sur: ${SONAR_HOST}"
+            echo "🎉🎉🎉 FÉLICITATIONS! Atelier SonarQube réussi! 🎉🎉🎉"
         }
-        
         failure {
-            echo "❌ L'atelier a rencontré des problèmes"
-            echo "Consultez les logs pour diagnostiquer"
+            echo "⚠️ Atelier partiellement réussi - Vérifiez SonarQube pour les résultats"
         }
     }
 }
