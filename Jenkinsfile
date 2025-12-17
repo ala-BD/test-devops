@@ -2,131 +2,105 @@ pipeline {
     agent any
     
     environment {
+        // Docker
         DOCKER_USER = 'alabendawed871'
         DOCKER_IMAGE = 'test-devops-ala'
         DOCKER_TAG = "build-${BUILD_NUMBER}"
+        
+        // SonarQube
+        SONAR_HOST = 'http://192.168.33.10:9000'
+        SONAR_PROJECT = 'student-management'
     }
     
     stages {
-        // ÉTAPE 1: PRÉPARATION
-        stage('Préparation') {
+        // ÉTAPE 1: Checkout
+        stage('Checkout') {
             steps {
-                echo '🚀 Démarrage du pipeline Docker'
-                echo "Build: ${BUILD_NUMBER}"
-                echo "Image: ${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG}"
-                
+                checkout scm
+            }
+        }
+        
+        // ÉTAPE 2: Build Maven
+        stage('Build & Test') {
+            steps {
                 sh '''
-                    echo "Vérification Docker..."
-                    docker --version
+                    echo "=== BUILD MAVEN ==="
+                    mvn clean compile test
+                    echo "✅ Build réussi"
                 '''
             }
         }
         
-        // ÉTAPE 2: VÉRIFICATION
-        stage('Vérification') {
+        // ÉTAPE 3: SonarQube Analysis (SIMPLIFIÉE)
+        stage('SonarQube') {
             steps {
-                sh '''
-                    echo "Contenu du répertoire:"
-                    ls -la
-                    
-                    echo ""
-                    echo "Vérification Dockerfile:"
-                    if [ -f "Dockerfile" ]; then
-                        echo "✅ Dockerfile trouvé"
-                        cat Dockerfile
-                    else
-                        echo "❌ Dockerfile manquant"
-                        exit 1
-                    fi
-                '''
-            }
-        }
-        
-        // ÉTAPE 3: TEST CREDENTIALS
-        stage('Test Login Docker') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'docker-hub-ala',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )
-                ]) {
-                    sh '''
-                        echo "Test connexion Docker Hub..."
-                        echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
-                        echo "✅ Connecté à Docker Hub"
-                        docker logout
-                    '''
+                script {
+                    withSonarQubeEnv('SonarQube') {
+                        sh """
+                            echo "=== ANALYSE SONARQUBE ==="
+                            mvn sonar:sonar \
+                              -Dsonar.projectKey=${SONAR_PROJECT} \
+                              -Dsonar.projectName="${SONAR_PROJECT}" \
+                              -Dsonar.host.url=${SONAR_HOST}
+                        """
+                    }
                 }
             }
         }
         
-        // ÉTAPE 4: BUILD
-        stage('Build Image') {
+        // ÉTAPE 4: Quality Gate
+        stage('Quality Check') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: false
+                }
+            }
+        }
+        
+        // ÉTAPE 5: Build Docker
+        stage('Build Docker') {
             steps {
                 sh """
-                    echo "Construction image Docker..."
+                    echo "=== BUILD DOCKER ==="
                     docker build -t ${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG} .
                     docker tag ${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_USER}/${DOCKER_IMAGE}:latest
-                    echo "✅ Image construite"
-                    
-                    echo "Images disponibles:"
-                    docker images | grep ${DOCKER_USER} || true
+                    echo "✅ Image Docker construite"
                 """
             }
         }
         
-        // ÉTAPE 5: TEST
-        stage('Test Image') {
+        // ÉTAPE 6: Push Docker
+        stage('Push Docker') {
             steps {
-                sh """
-                    echo "Test de l'image..."
-                    docker run --rm ${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG}
-                    echo "✅ Test réussi"
-                """
-            }
-        }
-        
-        // ÉTAPE 6: PUSH
-        stage('Push Docker Hub') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'docker-hub-ala',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )
-                ]) {
-                    sh '''
-                        echo "Connexion Docker Hub..."
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-ala',
+                    usernameVariable: 'DOCKER_USERNAME',
+                    passwordVariable: 'DOCKER_PASSWORD'
+                )]) {
+                    sh """
+                        echo "=== PUSH DOCKER HUB ==="
                         echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
-                        
-                        echo "Push image..."
                         docker push ${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG}
                         docker push ${DOCKER_USER}/${DOCKER_IMAGE}:latest
-                        
-                        echo "✅ Image poussée sur Docker Hub"
                         docker logout
-                    '''
+                        echo "✅ Image poussée sur Docker Hub"
+                    """
                 }
             }
         }
         
-        // ÉTAPE 7: FINAL
-        stage('Final') {
+        // ÉTAPE 7: Cleanup
+        stage('Cleanup') {
             steps {
-                echo "✅ PIPELINE RÉUSSIE!"
-                echo ""
-                echo "📊 RÉSUMÉ:"
-                echo "Build: #${BUILD_NUMBER}"
-                echo "Image: ${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG}"
-                echo "Docker Hub: https://hub.docker.com/r/${DOCKER_USER}/${DOCKER_IMAGE}"
-                
                 sh '''
-                    echo "Nettoyage..."
+                    echo "=== NETTOYAGE ==="
+                    # Nettoyer les images Docker
                     docker rmi ${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG} 2>/dev/null || true
                     docker rmi ${DOCKER_USER}/${DOCKER_IMAGE}:latest 2>/dev/null || true
+                    
+                    # Nettoyer Docker
+                    docker system prune -f 2>/dev/null || true
+                    echo "✅ Nettoyage terminé"
                 '''
             }
         }
@@ -134,10 +108,16 @@ pipeline {
     
     post {
         success {
-            echo '🎉 SUCCÈS COMPLET!!'
+            echo """
+            ✅ PIPELINE RÉUSSI!
+            ====================
+            Build: #${BUILD_NUMBER}
+            SonarQube: ${SONAR_HOST}/dashboard?id=${SONAR_PROJECT}
+            Docker: ${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG}
+            """
         }
         failure {
-            echo '❌ ÉCHEC - Vérifiez les logs'
+            echo '❌ Pipeline échoué'
         }
     }
 }
