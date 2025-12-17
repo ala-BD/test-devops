@@ -2,129 +2,78 @@ pipeline {
     agent any
     
     environment {
-        // Docker
         DOCKER_USER = 'alabendawed871'
-        DOCKER_IMAGE = 'student-management-ala'
-        DOCKER_TAG = "build-${BUILD_NUMBER}"
-        
-        // SonarQube
-        SONAR_HOST = 'http://192.168.33.10:9000'
-        SONAR_PROJECT = 'student-management'
-        
-        // VOTRE configuration MySQL EXACTE
-        DB_URL = 'jdbc:mysql://localhost:3306/studentdb?createDatabaseIfNotExist=true'
-        DB_USER = 'root'
-        DB_PASSWORD = ''
+        DOCKER_IMAGE = 'test-devops-ala'
     }
     
     stages {
-        // ÉTAPE 1: Checkout
-        stage('Checkout Git') {
+        // 1. Récupérer le code
+        stage('📥 Git Checkout') {
             steps {
                 checkout scm
-                echo '✅ Code récupéré depuis Git'
             }
         }
         
-        // ÉTAPE 2: Build avec VOTRE configuration MySQL
-        stage('Build avec MySQL') {
+        // 2. Analyser avec SonarQube
+        stage('🔍 SonarQube') {
             steps {
-                sh """
-                    echo "=== BUILD AVEC VOTRE CONFIGURATION MYSQL ==="
-                    echo "URL: ${DB_URL}"
-                    echo "User: ${DB_USER}"
-                    
-                    # OPTION A: Avec tests (si MySQL disponible sur Jenkins)
-                    mvn clean compile test \
-                      -Dspring.datasource.url=${DB_URL} \
-                      -Dspring.datasource.username=${DB_USER} \
-                      -Dspring.datasource.password=${DB_PASSWORD} \
-                      -Dspring.jpa.hibernate.ddl-auto=update \
-                      -Dspring.jpa.show-sql=false \
-                      -Dserver.port=8089 \
-                      -Dserver.servlet.context-path=/student
-                    
-                    echo "✅ Build avec MySQL réussi"
-                """
-            }
-        }
-        
-        // ÉTAPE 3: ATELIER SONARQUBE (LE PLUS IMPORTANT)
-        stage('Atelier SonarQube') {
-            steps {
-                script {
-                    withSonarQubeEnv('SonarQube') {
-                        sh """
-                            echo "======================================"
-                            echo "🔍 ATELIER SONARQUBE - ANALYSE DU CODE"
-                            echo "======================================"
-                            
-                            # Commande SonarQube - Token injecté AUTOMATIQUEMENT
-                            mvn sonar:sonar \
-                              -Dsonar.projectKey=${SONAR_PROJECT} \
-                              -Dsonar.projectName="Student Management" \
-                              -Dsonar.projectVersion=${BUILD_NUMBER} \
-                              -Dsonar.sources=src/main/java \
-                              -Dsonar.java.binaries=target/classes \
-                              -Dsonar.java.source=17 \
-                              -Dsonar.sourceEncoding=UTF-8
-                            
-                            echo ""
-                            echo "🎯 ANALYSE SONARQUBE TERMINÉE!"
-                            echo "📊 Accédez au rapport: ${SONAR_HOST}/dashboard?id=${SONAR_PROJECT}"
-                            echo ""
-                            echo "✅ Objectif Atelier: ATTEINT!"
-                        """
-                    }
+                withSonarQubeEnv('SonarQube') {
+                    sh 'mvn sonar:sonar -Dsonar.projectKey=test-devops'
                 }
             }
         }
         
-        // ÉTAPE 4: Quality Gate (sans bloquer)
-        stage('Quality Gate') {
+        // 3. Attendre le Quality Gate
+        stage('✅ Quality Check') {
             steps {
-                echo "⏳ Vérification Quality Gate..."
-                timeout(time: 3, unit: 'MINUTES') {
+                timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: false
                 }
-                echo "✅ Quality Gate vérifiée"
             }
         }
         
-        // ÉTAPE 5: Rapport final atelier
-        stage('Rapport Atelier') {
+        // 4. Construire avec Maven
+        stage('🏗️ Build') {
             steps {
-                echo """
-                ========================================
-                🎉 ATELIER SONARQUBE COMPLÈTEMENT RÉUSSI!
-                ========================================
-                
-                📋 CONFIGURATION UTILISÉE:
-                • Base de données: MySQL (votre config)
-                • Projet: ${SONAR_PROJECT}
-                • SonarQube: ${SONAR_HOST}
-                • Build: #${BUILD_NUMBER}
-                
-                ✅ COMPÉTENCES ACQUISES:
-                1. Intégration SonarQube dans Jenkins
-                2. Analyse statique de code Java
-                3. Configuration avec base de données
-                4. Pipeline CI/CD fonctionnel
-                5. Quality Gate automatisée
-                
-                🏁 L'atelier est terminé avec succès!
-                Consultez vos résultats sur SonarQube.
-                """
+                sh 'mvn clean package'
+            }
+        }
+        
+        // 5. Construire l'image Docker
+        stage('🐳 Build Docker') {
+            steps {
+                sh '''
+                    docker build -t ${DOCKER_USER}/${DOCKER_IMAGE}:latest .
+                    docker tag ${DOCKER_USER}/${DOCKER_IMAGE}:latest ${DOCKER_USER}/${DOCKER_IMAGE}:build-${BUILD_NUMBER}
+                '''
+            }
+        }
+        
+        // 6. Pousser sur Docker Hub
+        stage('📤 Push Docker') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-ala', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh '''
+                        echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+                        docker push ${DOCKER_USER}/${DOCKER_IMAGE}:latest
+                        docker push ${DOCKER_USER}/${DOCKER_IMAGE}:build-${BUILD_NUMBER}
+                        docker logout
+                    '''
+                }
             }
         }
     }
     
     post {
         success {
-            echo "🎉🎉🎉 FÉLICITATIONS! Atelier SonarQube réussi! 🎉🎉🎉"
+            echo '✅ Pipeline réussie !'
+            sh '''
+                echo "Image Docker: ${DOCKER_USER}/${DOCKER_IMAGE}:build-${BUILD_NUMBER}"
+                echo "Docker Hub: https://hub.docker.com/r/${DOCKER_USER}/${DOCKER_IMAGE}"
+            '''
         }
         failure {
-            echo "⚠️ Atelier partiellement réussi - Vérifiez SonarQube pour les résultats"
+            echo '❌ Pipeline échouée'
         }
     }
 }
