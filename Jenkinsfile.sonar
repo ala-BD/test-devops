@@ -1,0 +1,31 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Maven') {
+            steps {
+                sh 'mvn clean verify'
+            }
+        }
+
+        stage('Analyse SonarQube') {
+            steps {
+                withSonarQubeEnv('SonarQube-Ala') {
+                    sh '''
+                        mvn sonar:sonar \
+                          -Dsonar.projectKey=atelier-sonar-ala \
+                          -Dsonar.projectName=atelier-sonar-ala \
+                          -Dsonar.login=${SONAR_AUTH_TOKEN}
+                    '''
+                }
+            }
+        }
+    }
+}
